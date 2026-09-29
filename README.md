@@ -1,1 +1,149 @@
-# Reducing-Readmissions-excel-project
+# Hospital Readmission Analytics Dashboard (Excel)
+
+An interactive Excel dashboard that shows **who gets readmitted within 30 days, where, and why it matters** - built from a hospital administration case study (48,911 unique patient encounters).
+
+![Dashboard overview](screenshots/dashboard_overview.png)
+
+## 1. Project overview
+
+A hospital's administration team has seen readmission rates rise, which increases cost and signals possible quality-of-care problems. As the data analyst, the task is to find the patterns behind readmissions so interventions can be targeted (see [`docs/case_study_brief.md`](docs/case_study_brief.md)).
+
+This repo turns the raw encounter data into:
+
+1. a cleaned, documented dataset,
+2. a written answer to the 10 basic case-study questions,
+3. a **single-page Excel dashboard** with filters, KPI cards, auto-updating insights and 9 charts.
+
+## 2. Objectives
+
+- Measure the 30-day readmission rate and see which patient groups sit above or below it.
+- Identify the strongest risk signals (age, prior admissions, prior emergency visits, complexity, medication management).
+- Compare length of stay and readmission across specialties.
+- Give administrators a tool they can filter themselves, not just a set of static charts.
+
+## 3. Tools used
+
+| Tool | Used for |
+|---|---|
+| Python (pandas, SciPy) | Cleaning, de-duplication, feature bands, statistical checks (correlation, chi-square) |
+| Excel formulas (`COUNTIFS`, `SUMIFS`, `INDEX/MATCH`, `TEXT`) | Every dashboard number is a live formula over the Data sheet |
+| Excel dropdown filters (data validation) + charts | Interactivity and visuals |
+| XlsxWriter | Builds the workbook reproducibly from code |
+| LibreOffice (headless) | Recalculation check and screenshot rendering |
+
+## 4. Repository structure
+
+```
+hospital-readmission-dashboard/
+|-- README.md
+|-- requirements.txt
+|-- data/
+|   |-- raw/HA_Data.csv                     original dataset (66,587 rows)
+|   |-- processed/HA_Data_clean.csv         de-duplicated + derived columns (48,911 rows)
+|   `-- data_dictionary.md                  column definitions, raw and processed
+|-- dashboard/
+|   `-- Hospital_Readmission_Dashboard.xlsx the deliverable (Dashboard, About, Calc, Data sheets)
+|-- scripts/
+|   |-- 01_clean_data.py                    raw -> processed + data quality log
+|   |-- 02_eda_basic_questions.py           answers to the 10 basic questions
+|   `-- 03_build_dashboard.py               builds the Excel workbook
+|-- reports/
+|   |-- data_quality_log.md                 what was wrong with the data and what was done
+|   `-- basic_questions_results.md          solution guide (tables + interpretation)
+|-- screenshots/
+|   |-- dashboard_overview.png              default view (all filters = All)
+|   `-- dashboard_filtered_example.png      Female + Caucasian + on diabetic medication
+`-- docs/
+    |-- case_study_brief.md                 problem statement + which questions are covered
+    `-- design_reference_google_search.png  dashboard styles used as design inspiration
+```
+
+## 5. Process
+
+1. **Understand the brief** - readmission (<30 days) is the target; stakeholders are administrators and clinical leads, so the dashboard leads with headline KPIs and then drills into drivers.
+2. **Audit and clean the data** (`01_clean_data.py`)
+   - **17,676 exact duplicate rows removed** (26.5% of the file) -> 48,911 unique encounters. Without this step every metric would be double-counted for a quarter of the encounters.
+   - `?` in race / specialty / weight recoded to `Unknown`; 2 rows with invalid gender recoded.
+   - Added readable age groups and bands for prior visits, diagnoses, medications and lab procedures.
+3. **Explore and test** (`02_eda_basic_questions.py`) - group rates, Pearson correlations and a chi-square test to see which findings are real before putting them on a dashboard.
+4. **Design the dashboard** (layout below), inspired by the KPI-plus-charts dashboards in [`docs/design_reference_google_search.png`](docs/design_reference_google_search.png).
+5. **Build in Excel** (`03_build_dashboard.py`) - Data sheet -> `Calc` sheet of `COUNTIFS`/`SUMIFS` tables -> Dashboard charts that point at those tables.
+6. **Verify** - workbook recalculated in LibreOffice with **0 formula errors (387 formulas)**; KPI values, every chart table and one filtered scenario (Female + Caucasian + on diabetic medication) were compared against pandas and matched exactly.
+
+## 6. Dashboard design
+
+Top-to-bottom reading order, from "how are we doing" to "why":
+
+| Zone | What it shows |
+|---|---|
+| **Filters** | 5 dropdowns: Gender, Race, Age group, Diabetes medication, Diabetic medication change |
+| **KPI cards** | Encounters, Readmitted (30 days), Readmission rate, Avg length of stay, Avg medications, Prior-inpatient share - each with an up/down delta vs the overall baseline (red = worse, green = better) |
+| **Key insights** | Five sentences generated by formulas, so they rewrite themselves when filters change |
+| **1. Who is readmitted?** | Rate by age group; by prior inpatient visits; by prior emergency visits |
+| **2. Where and for whom?** | Rate by specialty; length of stay by specialty; rate by race |
+| **3. Complexity and medication** | Comorbidity (stay bars + readmission line); stay by number of medications; medication use / change |
+
+How the filters work: each dropdown feeds a criteria cell on the `Calc` sheet (`All` becomes the wildcard `*`), and every `COUNTIFS` / `SUMIFS` includes those criteria - so KPIs, insights and charts all respond together. The Age and Race charts ignore their own filter so the groups stay comparable.
+
+Example with filters applied:
+
+![Filtered view](screenshots/dashboard_filtered_example.png)
+
+## 7. Key insights
+
+Overall: **46.2%** of the 48,911 encounters (22,609) were flagged as readmitted within 30 days.
+
+- **Prior admissions are the strongest signal.** Readmission is **38.5%** with no prior inpatient stay and **79.7%** with 4+ (2.1x). Prior inpatient history is also the field most correlated with readmission (r = 0.22).
+- **Prior emergency visits show the same pattern:** 44.0% with none vs 79.0% with 3+ visits.
+- **A third of encounters drive almost half of readmissions.** The 33.6% of encounters with at least one inpatient stay in the previous year have a 61.5% readmission rate and account for 44.7% of all readmissions.
+- **Complexity matters.** Readmission rises from 35.4% (1-4 diagnoses) to 50.7% (9+), and stay from 3.0 to 5.0 days.
+- **Medication load tracks length of stay** (r = 0.47): 2.9 days for 1-10 medications vs 8.0 days for 31+.
+- **Medication changes are associated with more readmissions:** 48.7% when the diabetic regimen was changed vs 44.1% when not (+4.6 pts, chi-square p < 0.001). Patients on diabetic medication are readmitted more (47.9% vs 40.5%). These are associations - sicker patients are more likely to have their medication changed.
+- **Age effect is modest.** Rates climb from about 42% (30s) to 48% (70s); the 70-79 group is highest.
+- **Specialty:** among the 10 largest known specialties, Nephrology has the highest readmission rate (55.9%), Psychiatry the longest average stay (6.7 days) and Orthopedics-Reconstructive the lowest readmission rate (30.5%). Across all specialties with 100+ encounters, Physical Medicine and Rehabilitation has the longest stay (9.0 days).
+- **Race and gender:** Caucasian (47.0%) and African-American (46.1%) patients have the highest rates; female 46.8% vs male 45.5%. Other groups are small samples - check before drawing conclusions.
+
+Full tables: [`reports/basic_questions_results.md`](reports/basic_questions_results.md).
+
+### Suggested actions for stakeholders
+
+- **Care management / clinical leads:** start post-discharge follow-up (call within 48 hours, early clinic slot) with patients who had 2+ inpatient stays in the past year - 14% of encounters, 70% readmission rate, 22% of all readmissions.
+- **Pharmacy and physicians:** review medication regimens for patients with high medication counts and for those whose diabetic medication was changed during the stay.
+- **Department heads:** review discharge planning in Nephrology and Emergency/Trauma (highest rates among large specialties).
+- **Data team:** fix the missing specialty (49%) and weight (97%) fields so future analysis can use them.
+
+## 8. Data limitations - read before quoting numbers
+
+- **Duplicates:** 26.5% of raw rows were exact duplicates and were removed (see [`reports/data_quality_log.md`](reports/data_quality_log.md)).
+- **Very high readmission rate:** 46% is far above the ~10-12% typically seen for diabetes patients, so this behaves like a training/case-study dataset. Use it to practise analysis and dashboard design, not to judge a real hospital.
+- **No date column** - trend and seasonality analysis is not possible. No cost, discharge-disposition or satisfaction fields either.
+- **Weight is 97% missing; specialty is 49% unknown.**
+- **Associations, not causes.**
+- Column meanings for `X1`-`X25` are not documented in the source, so they were not used.
+
+## 9. How to run / reproduce
+
+**Just look at the dashboard:** open `dashboard/Hospital_Readmission_Dashboard.xlsx` in Excel (2016 or later) and use the filter boxes on the *Dashboard* sheet. Calculation takes about a second per change because the formulas scan 48,911 rows.
+
+**Rebuild everything:**
+
+```bash
+pip install -r requirements.txt
+python scripts/01_clean_data.py          # data/processed + reports/data_quality_log.md
+python scripts/02_eda_basic_questions.py # reports/basic_questions_results.md
+python scripts/03_build_dashboard.py     # dashboard/Hospital_Readmission_Dashboard.xlsx
+```
+
+The rebuilt workbook has no stored formula results until Excel opens it and calculates (this happens automatically). The shipped file already includes stored results, produced with the optional `--cache` flag of `03_build_dashboard.py`.
+
+The workbook was checked with LibreOffice 24.2; it was not opened in desktop Excel while building, so if a chart looks slightly different there, that is a rendering difference and not a data issue.
+
+## 10. Next steps
+
+- Predictive model (logistic regression / gradient boosting) for readmission risk using the prior-visit and complexity fields, with fairness checks by race and gender.
+- Patient segmentation (K-means on utilisation) and cost/avoidable-readmission analysis once cost data exists.
+- Move the same design to Power BI or Tableau for native slicers and drill-through.
+
+## 11. Credits
+
+Dataset: *Hospital Administration Data* (Kaggle, `shivavashishtha/hospital-administration-data`), used for the "Reducing Readmissions" case study.
